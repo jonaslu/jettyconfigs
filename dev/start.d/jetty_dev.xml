@@ -1,0 +1,327 @@
+<?xml version="1.0"?>
+<!DOCTYPE Configure PUBLIC "-//Jetty//Configure//EN" "http://www.eclipse.org/jetty/configure_9_0.dtd">
+
+<!-- ============================================================= -->
+<!-- Configure the Jetty Server instance with an ID "Server"       -->
+<!-- by adding a HTTP connector.                                   -->
+<!-- This configuration must be used in conjunction with jetty.xml -->
+<!-- ============================================================= -->
+<Configure id="dev" class="org.eclipse.jetty.server.Server">
+
+	<!-- From jetty.xml -->
+
+	<!-- =========================================================== -->
+	<!-- Configure the Server Thread Pool.                           -->
+	<!-- The server holds a common thread pool which is used by      -->
+	<!-- default as the executor used by all connectors and servlet  -->
+	<!-- dispatches.                                                 -->
+	<!--                                                             -->
+	<!-- Configuring a fixed thread pool is vital to controlling the -->
+	<!-- maximal memory footprint of the server and is a key tuning  -->
+	<!-- parameter for tuning.  In an application that rarely blocks -->
+	<!-- then maximal threads may be close to the number of 5*CPUs.  -->
+	<!-- In an application that frequently blocks, then maximal      -->
+	<!-- threads should be set as high as possible given the memory  -->
+	<!-- available.                                                  -->
+	<!--                                                             -->
+	<!-- Consult the javadoc of o.e.j.util.thread.QueuedThreadPool   -->
+	<!-- for all configuration that may be set here.                 -->
+	<!-- =========================================================== -->
+	<Arg name="threadpool">
+		<New id="threadpool" class="org.eclipse.jetty.util.thread.QueuedThreadPool">
+			<Arg name="minThreads" type="int">10</Arg>
+			<Arg name="maxThreads" type="int">200</Arg>
+			<Arg name="idleTimeout" type="int">60000</Arg>
+			<Set name="detailedDump">false</Set>
+		</New>
+	</Arg>
+
+	<!-- =========================================================== -->
+	<!-- Add shared Scheduler instance                               -->
+	<!-- =========================================================== -->
+	<Call name="addBean">
+		<Arg>
+			<New class="org.eclipse.jetty.util.thread.ScheduledExecutorScheduler"/>
+		</Arg>
+	</Call>
+
+	<!-- =========================================================== -->
+	<!-- Http Configuration.                                         -->
+	<!-- This is a common configuration instance used by all         -->
+	<!-- connectors that can carry HTTP semantics (HTTP, HTTPS, SPDY)-->
+	<!-- It configures the non wire protocol aspects of the HTTP     -->
+	<!-- semantic.                                                   -->
+	<!--                                                             -->
+	<!-- This configuration is only defined here and is used by      -->
+	<!-- reference from the jetty-http.xml, jetty-https.xml and      -->
+	<!-- jetty-spdy.xml configuration files which instantiate the    -->
+	<!-- connectors.                                                 -->
+	<!--                                                             -->
+	<!-- Consult the javadoc of o.e.j.server.HttpConfiguration       -->
+	<!-- for all configuration that may be set here.                 -->
+	<!-- =========================================================== -->
+	<New id="httpConfig" class="org.eclipse.jetty.server.HttpConfiguration">
+		<Set name="secureScheme">https</Set>
+		<Set name="securePort"><Property name="jetty.secure.port" default="8441" /></Set>
+		<Set name="outputBufferSize">32768</Set>
+		<Set name="requestHeaderSize">8192</Set>
+		<Set name="responseHeaderSize">8192</Set>
+		<Set name="sendServerVersion">true</Set>
+		<Set name="sendDateHeader">false</Set>
+		<Set name="headerCacheSize">512</Set>
+
+		<!-- Uncomment to enable handling of X-Forwarded- style headers
+      <Call name="addCustomizer">
+        <Arg><New class="org.eclipse.jetty.server.ForwardedRequestCustomizer"/></Arg>
+      </Call>
+      -->
+	</New>
+
+
+	<!-- =========================================================== -->
+	<!-- Set the default handler structure for the Server            -->
+	<!-- A handler collection is used to pass received requests to   -->
+	<!-- both the ContextHandlerCollection, which selects the next   -->
+	<!-- handler by context path and virtual host, and the           -->
+	<!-- DefaultHandler, which handles any requests not handled by   -->
+	<!-- the context handlers.                                       -->
+	<!-- Other handlers may be added to the "Handlers" collection,   -->
+	<!-- for example the jetty-requestlog.xml file adds the          -->
+	<!-- RequestLogHandler after the default handler                 -->
+	<!-- =========================================================== -->
+	<Set name="handler">
+		<New id="Handlers" class="org.eclipse.jetty.server.handler.HandlerCollection">
+			<Set name="handlers">
+				<Array type="org.eclipse.jetty.server.Handler">
+					<Item>
+						<New id="DevContext" class="org.eclipse.jetty.server.handler.ContextHandlerCollection"/>
+					</Item>
+					<Item>
+						<New id="DefaultHandler" class="org.eclipse.jetty.server.handler.DefaultHandler"/>
+					</Item>
+				</Array>
+			</Set>
+		</New>
+	</Set>
+
+	<!-- =========================================================== -->
+	<!-- extra server options                                        -->
+	<!-- =========================================================== -->
+	<Set name="stopAtShutdown">true</Set>
+	<Set name="stopTimeout">5000</Set>
+	<Set name="dumpAfterStart">false</Set>
+	<Set name="dumpBeforeStop">false</Set>
+
+	<!-- jetty-http.xml -->
+	<!-- =========================================================== -->
+	<!-- Add a HTTP Connector.                                       -->
+	<!-- Configure an o.e.j.server.ServerConnector with a single     -->
+	<!-- HttpConnectionFactory instance using the common httpConfig  -->
+	<!-- instance defined in jetty.xml                               -->
+	<!--                                                             -->
+	<!-- Consult the javadoc of o.e.j.server.ServerConnector and     -->
+	<!-- o.e.j.server.HttpConnectionFactory for all configuration    -->
+	<!-- that may be set here.                                       -->
+	<!-- =========================================================== -->
+	<Call name="addConnector">
+		<Arg>
+			<New class="org.eclipse.jetty.server.ServerConnector">
+				<Arg name="server"><Ref refid="dev" /></Arg>
+				<Arg name="factories">
+					<Array type="org.eclipse.jetty.server.ConnectionFactory">
+						<Item>
+							<New class="org.eclipse.jetty.server.HttpConnectionFactory">
+								<Arg name="config"><Ref refid="httpConfig" /></Arg>
+							</New>
+						</Item>
+					</Array>
+				</Arg>
+				<Set name="host"><Property name="jetty.host" /></Set>
+				<Set name="port"><Property name="jetty.port" default="8080" /></Set>
+				<Set name="idleTimeout">30000</Set>
+			</New>
+		</Arg>
+	</Call>
+
+	<!-- jetty-deploy.xml -->
+	<!-- =============================================================== -->
+	<!-- Create the deployment manager                                   -->
+	<!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
+	<!-- The deplyment manager handles the lifecycle of deploying web    -->
+	<!-- applications. Apps are provided by instances of the             -->
+	<!-- AppProvider interface.                                          -->
+	<!-- =============================================================== -->
+	<Call name="addBean">
+		<Arg>
+			<New id="DeploymentManager" class="org.eclipse.jetty.deploy.DeploymentManager">
+				<Set name="contexts">
+					<Ref refid="DevContext" />
+				</Set>
+				<Call name="setContextAttribute">
+					<Arg>org.eclipse.jetty.server.webapp.ContainerIncludeJarPattern</Arg>
+					<Arg>.*/servlet-api-[^/]*\.jar$</Arg>
+				</Call>
+
+				<Call id="webappprovider" name="addAppProvider">
+					<Arg>
+						<New class="org.eclipse.jetty.deploy.providers.WebAppProvider">
+							<Set name="monitoredDirName"><Property name="jetty.home" default="." />/webapps/dev</Set>
+							<Set name="defaultsDescriptor"><Property name="jetty.home" default="." />/etc/webdefault.xml</Set>
+							<Set name="scanInterval">10</Set>
+							<Set name="extractWars">false</Set>
+							<Set name="configurationManager">
+								<New class="org.eclipse.jetty.deploy.PropertiesConfigurationManager">
+								</New>
+							</Set>
+						</New>
+					</Arg>
+				</Call>
+			</New>
+		</Arg>
+	</Call>
+
+	<!-- jetty-debug.xml -->
+	<Get id="oldhandler" name="handler"/>
+	<Set name="handler">
+		<New id="DebugHandler" class="org.eclipse.jetty.server.handler.DebugHandler">
+			<Set name="handler"><Ref refid="oldhandler"/></Set>
+			<Set name="outputStream">
+				<New class="org.eclipse.jetty.util.RolloverFileOutputStream">
+					<Arg type="String"><Property name="jetty.logs" default="./logs"/>/dev_yyyy_mm_dd.debug.log</Arg>
+					<Arg type="boolean">true</Arg> <!-- append -->
+					<Arg type="int">90</Arg> <!-- retain days -->
+				</New>
+			</Set>
+		</New>
+	</Set>
+
+	<!-- Possibilities of IP access restricting via jetty-ipaccess.xml -->
+
+	<!-- Test JMX console via jetty-jmx.xml -->
+
+	<!-- Logging via jetty-logging.xml -->
+	<!-- =============================================================== -->
+	<!-- Configure stderr and stdout to a Jetty rollover log file        -->
+	<!-- this configuration file should be used in combination with      -->
+	<!-- other configuration files.  e.g.                                -->
+	<!--    java -jar start.jar etc/jetty-logging.xml                    -->
+	<!-- =============================================================== -->
+	<New id="ServerLog" class="java.io.PrintStream">
+		<Arg>
+			<New class="org.eclipse.jetty.util.RolloverFileOutputStream">
+				<Arg><Property name="jetty.logs" default="./logs"/>/dev_yyyy_mm_dd.stderrout.log</Arg>
+				<Arg type="boolean">false</Arg>
+				<Arg type="int">90</Arg>
+				<Arg><Call class="java.util.TimeZone" name="getTimeZone"><Arg>GMT</Arg></Call></Arg>
+				<Get id="ServerLogName" name="datedFilename"/>
+			</New>
+		</Arg>
+	</New>
+
+	<Get class="org.eclipse.jetty.util.log.Log" name="rootLogger">
+		<Call name="info"><Arg>Redirecting stderr/stdout to <Ref refid="ServerLogName"/></Arg></Call>
+	</Get>
+	<Call class="java.lang.System" name="setErr"><Arg><Ref refid="ServerLog"/></Arg></Call>
+	<Call class="java.lang.System" name="setOut"><Arg><Ref refid="ServerLog"/></Arg></Call>
+
+	<!-- Possibilities of tuning when low on resources via jetty-lowresources.xml -->
+
+	<!-- Logging and of threads with heavy CPU load via jetty-monitor.xml needs OPTIONS=monitor in the start.ini file-->
+
+	<!-- Can enable proxying server instance via jetty-proxy.xml -->
+
+	<!-- Logging of requests via jetty-requestlog.xml -->
+	<!-- =========================================================== -->
+	<!-- Configure Request Log -->
+	<!-- =========================================================== -->
+	<Ref refid="Handlers">
+		<Call name="addHandler">
+			<Arg>
+				<New id="RequestLog" class="org.eclipse.jetty.server.handler.RequestLogHandler">
+					<Set name="requestLog">
+						<New id="RequestLogImpl" class="org.eclipse.jetty.server.AsyncNCSARequestLog">
+							<Set name="filename"><Property name="jetty.logs" default="./logs" />/dev_yyyy_mm_dd.request.log</Set>
+							<Set name="filenameDateFormat">yyyy_MM_dd</Set>
+							<Set name="retainDays">90</Set>
+							<Set name="append">true</Set>
+							<Set name="extended">true</Set>
+							<Set name="logCookies">false</Set>
+							<Set name="LogTimeZone">GMT</Set>
+						</New>
+					</Set>
+				</New>
+			</Arg>
+		</Call>
+	</Ref>
+
+	<!-- Rewrite rules via jetty-rewrite.xml -->
+
+	<!-- jetty-ssl.xml -->
+	<New id="sslContextFactory" class="org.eclipse.jetty.util.ssl.SslContextFactory">
+	<Set name="KeyStore"><Property name="jetty.home" default="."/>/etc/keystore</Set>
+	<Set name="KeyStorePassword">OBF:1vny1zlo1x8e1vnw1vn61x8g1zlu1vn4</Set>
+	<Set name="KeyManagerPassword">OBF:1u2u1wml1z7s1z7a1wnl1u2g</Set>
+	<Set name="TrustStore"><Property name="jetty.home" default="."/>/etc/keystore</Set>
+	<Set name="TrustStorePassword">OBF:1vny1zlo1x8e1vnw1vn61x8g1zlu1vn4</Set>
+		<Set name="EndpointIdentificationAlgorithm"></Set>
+		<Set name="ExcludeCipherSuites">
+			<Array type="String">
+				<Item>SSL_RSA_WITH_DES_CBC_SHA</Item>
+				<Item>SSL_DHE_RSA_WITH_DES_CBC_SHA</Item>
+				<Item>SSL_DHE_DSS_WITH_DES_CBC_SHA</Item>
+				<Item>SSL_RSA_EXPORT_WITH_RC4_40_MD5</Item>
+				<Item>SSL_RSA_EXPORT_WITH_DES40_CBC_SHA</Item>
+				<Item>SSL_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA</Item>
+				<Item>SSL_DHE_DSS_EXPORT_WITH_DES40_CBC_SHA</Item>
+			</Array>
+		</Set> 
+
+		<!-- =========================================================== -->
+		<!-- Create a TLS specific HttpConfiguration based on the        -->
+		<!-- common HttpConfiguration defined in jetty.xml               -->
+		<!-- Add a SecureRequestCustomizer to extract certificate and    -->
+		<!-- session information                                         -->
+		<!-- =========================================================== -->
+		<New id="sslHttpConfig" class="org.eclipse.jetty.server.HttpConfiguration">
+			<Arg><Ref refid="httpConfig"/></Arg>
+			<Call name="addCustomizer">
+				<Arg><New class="org.eclipse.jetty.server.SecureRequestCustomizer"/></Arg>
+			</Call>
+		</New>
+	</New>
+
+	<!-- jetty-https.xml -->
+	<Call id="sslConnector" name="addConnector">
+		<Arg>
+			<New class="org.eclipse.jetty.server.ServerConnector">
+				<Arg name="server"><Ref refid="dev" /></Arg>
+				<Arg name="factories">
+					<Array type="org.eclipse.jetty.server.ConnectionFactory">
+						<Item>
+							<New class="org.eclipse.jetty.server.SslConnectionFactory">
+								<Arg name="next">http/1.1</Arg>
+								<Arg name="sslContextFactory"><Ref refid="sslContextFactory"/></Arg>
+							</New>
+						</Item>
+						<Item>
+							<New class="org.eclipse.jetty.server.HttpConnectionFactory">
+								<Arg name="config"><Ref refid="sslHttpConfig"/></Arg>
+							</New>
+						</Item>
+					</Array>
+				</Arg>
+				<Set name="host"><Property name="jetty.host" /></Set>
+				<Set name="port"><Property name="jetty.tls.port" default="8443" /></Set>
+				<Set name="idleTimeout">30000</Set>
+			</New>
+		</Arg>
+	</Call>
+
+	<!-- jetty-started.xml -->
+	<!-- Writes STARTING, STARTED, FAILED, STOPPING, STOPPED to a file -->
+	<!-- Can be used to programatically wait for a successful server start -->
+
+	<!-- statistics on requests, sessions via jetyt-stats.xml, must enable jmx for this -->
+
+</Configure>
+
